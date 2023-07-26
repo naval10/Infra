@@ -1,0 +1,307 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: Myenv
+
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 192.18.0.0/24
+
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 192.18.0.0/26
+
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 192.18.0.64/26
+
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 192.18.0.128/26
+
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 192.18.0.192/26
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes (AZ2)
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
+
+  MyInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Beanstalk EC2 role
+      # Update the IAM role policy based on your use case
+      # ManagedPolicyArns: (You can add managed policies here if required)
+
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref MyInstanceRole
+
+  NewKeyPair:
+    Type: 'AWS::EC2::KeyPair'
+    Properties:
+      KeyName: Web_key
+
+  sampleApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: "AWS Elastic Beanstalk Sample Application"
+      ApplicationName: "Sample-APP"
+
+  sampleEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName:
+        Ref: sampleApplication
+      Description: "This is my environment"
+      EnvironmentName: Sample-Env
+      SolutionStackName: "64bit Amazon Linux 2 v5.8.3 running Node.js 18"
+      OptionSettings:
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: '2'
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: '4'
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref MyInstanceProfile
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+        - Namespace: aws:ec2:vpc
+          OptionName: DBSubnets
+          Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: t2.micro
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: EC2KeyName
+          Value: Web_key
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          Value: true
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBScheme
+          Value: public
+        - Namespace: aws:elasticbeanstalk:healthreporting:system
+          OptionName: SystemType
+          Value: enhanced
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: StreamLogs
+          Value: true
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: DeleteOnTerminate
+          Value: true
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: MatcherHTTPCode
+          Value: '200'
+        - Namespace: aws:rds:dbinstance
+          OptionName: DBAllocatedStorage
+          Value: '10'
+        - Namespace: aws:rds:dbinstance
+          OptionName: DBEngine
+          Value: mysql
+        - Namespace: aws:rds:dbinstance
+          OptionName: DBInstanceClass
+          Value: db.t2.micro
+        - Namespace: aws:rds:dbinstance
+          OptionName: DBUser
+          Value: admin
+        - Namespace: aws:rds:dbinstance
+          OptionName: DBPassword
+          # Use a secure method for storing sensitive information
+          Value: Bracadabra
+        - Namespace: aws:rds:dbinstance
+          OptionName: DBEngineVersion
+          Value: '5.7.37'
+        - Namespace: aws:rds:dbinstance
+          OptionName: DBDeletionPolicy
+          Value: Delete
+        - Namespace: aws:rds:dbinstance
+          OptionName: HasCoupledDatabase
+          Value: true
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+
+  PublicSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref PublicSubnet1
+
+  PublicSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref PublicSubnet2
+
+  PrivateSubnet1:
+    Description: A reference to the private subnet in the 1st Availability Zone
+    Value: !Ref PrivateSubnet1
+
+  PrivateSubnet2:
+    Description: A reference to the private subnet in the 2nd Availability Zone
+    Value: !Ref PrivateSubnet2
+
+  SampleEnvironmentEndpointURL:
+        Description: "Endpoint URL of the sampleEnvironment"
+        Value: !GetAtt sampleEnvironment.EndpointURL
