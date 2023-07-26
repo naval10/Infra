@@ -200,7 +200,7 @@ Resources:
       OptionSettings:
         - Namespace: aws:elasticbeanstalk:environment
           OptionName: ServiceRole
-          value: !Ref MyInstanceRole
+          Value: arn:aws:iam::490662223625:role/service-role/aws-elasticbeanstalk-service-role
         - Namespace: aws:autoscaling:asg
           OptionName: MinSize
           Value: '2'
@@ -245,10 +245,10 @@ Resources:
           Value: enhanced
         - Namespace: aws:elasticbeanstalk:cloudwatch:logs:Health
           OptionName: HealthStreamingEnabled
-          value: true
+          Value: true
         - Namespace: aws:elasticbeanstalk:cloudwatch:logs:Health
           OptionName: DeleteOnTerminate
-          value: true
+          Value: true
         - Namespace: aws:elasticbeanstalk:cloudwatch:logs
           OptionName: StreamLogs
           Value: true
