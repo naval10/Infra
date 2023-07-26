@@ -167,8 +167,10 @@ Resources:
             Action:
               - sts:AssumeRole
       Description: Beanstalk EC2 role
-      # Update the IAM role policy based on your use case
-      # ManagedPolicyArns: (You can add managed policies here if required)
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
 
   MyInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -196,6 +198,9 @@ Resources:
       EnvironmentName: Sample-Env
       SolutionStackName: "64bit Amazon Linux 2 v5.8.3 running Node.js 18"
       OptionSettings:
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: ServiceRole
+          value: !Ref MyInstanceRole
         - Namespace: aws:autoscaling:asg
           OptionName: MinSize
           Value: '2'
@@ -238,6 +243,12 @@ Resources:
         - Namespace: aws:elasticbeanstalk:healthreporting:system
           OptionName: SystemType
           Value: enhanced
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs:Health
+          OptionName: HealthStreamingEnabled
+          value: true
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs:Health
+          OptionName: DeleteOnTerminate
+          value: true
         - Namespace: aws:elasticbeanstalk:cloudwatch:logs
           OptionName: StreamLogs
           Value: true
@@ -305,3 +316,6 @@ Outputs:
   SampleEnvironmentEndpointURL:
         Description: "Endpoint URL of the sampleEnvironment"
         Value: !GetAtt sampleEnvironment.EndpointURL
+  MyInstanceRole:
+        Value: !GetAtt MyInstanceRole.Arn
+        Description: The ARN of the IAM role created for this stack.
