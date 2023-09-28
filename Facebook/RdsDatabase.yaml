@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A sample CloudFormation template with metadata to create an RDS Instance and ElastiCache for caching
+Metadata:
+  Name: Vald
+  Role: Solutions Architect
+Parameters:
+  EnvironmentName:
+    Description: Name of the environment
+    Type: String
+
+Resources: 
+  myDBSubnetGroup: 
+    Properties: 
+      DBSubnetGroupDescription: description
+      SubnetIds: 
+      - Fn::ImportValue:
+          !Sub "${EnvironmentName}-PrivateSubnet1"
+      - Fn::ImportValue:
+          !Sub "${EnvironmentName}-PrivateSubnet2"
+      Tags: 
+        - 
+          Key: String
+          Value: String
+    Type: "AWS::RDS::DBSubnetGroup"
+  
+  DBGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      EC2VpcId: 
+        Fn::ImportValue:
+           !Sub "${EnvironmentName}-VPC"
+      GroupDescription: Ingress for CIDRIP
+      DBSecurityGroupIngress:
+        CIDRIP: "192.17.0.0/24"
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: This is a Secrets Manager secret for a Redshift cluster
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: password
+        PasswordLength: 16
+        ExcludeCharacters: "\"'@/\\"
+  
+  MyInstance:
+    Properties:
+      MasterUsername:
+        Fn::Sub: "{{resolve:secretsmanager:${Secret}::username}}"
+      MasterUserPassword:
+        Fn::Sub: "{{resolve:secretsmanager:${Secret}::password}}"
+      DBSubnetGroupName: !Ref myDBSubnetGroup
+      DBSecurityGroups:
+      - !Ref DBGroup
+      DBInstanceClass: "db.t3.micro"
+      Engine: "mysql"
+      AllocatedStorage: 5
+      AutoMinorVersionUpgrade: false
+      ManageMasterUserPassword: true
+    Type: "AWS::RDS::DBInstance"
